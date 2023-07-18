@@ -40,7 +40,7 @@ class AccessTokenService
         $response = Http::post(env('OAUTH_SERVER') . 'oauth/token', [
             'grant_type' => 'authorization_code',
             'code' => $request->input('code',),
-            'redirect_uri' => env('APP_URL'),
+            'redirect_uri' => env('APP_URL') . 'auth/login',
             'client_id' => env('OAUTH_CLIENT_ID'),
             'client_secret' => env('OAUTH_CLIENT_SECRET'),
             'scope' => implode(" ", config('auth.scopes')),
