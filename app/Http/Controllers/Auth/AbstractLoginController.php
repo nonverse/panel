@@ -2,18 +2,18 @@
 
 namespace Pterodactyl\Http\Controllers\Auth;
 
-use Illuminate\Http\Request;
-use Pterodactyl\Models\User;
 use Illuminate\Auth\AuthManager;
-use Illuminate\Http\JsonResponse;
 use Illuminate\Auth\Events\Failed;
 use Illuminate\Container\Container;
-use Illuminate\Support\Facades\Event;
-use Pterodactyl\Events\Auth\DirectLogin;
-use Pterodactyl\Exceptions\DisplayException;
-use Pterodactyl\Http\Controllers\Controller;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Foundation\Auth\AuthenticatesUsers;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Event;
+use Pterodactyl\Exceptions\DisplayException;
+use Pterodactyl\Http\Controllers\Controller;
+use Pterodactyl\Models\User;
 
 abstract class AbstractLoginController extends Controller
 {
@@ -70,23 +70,14 @@ abstract class AbstractLoginController extends Controller
     /**
      * Send the response after the user was authenticated.
      */
-    protected function sendLoginResponse(User $user, Request $request): JsonResponse
+    protected function sendLoginResponse(Request $request, User $user): JsonResponse
     {
-        $request->session()->remove('auth_confirmation_token');
         $request->session()->regenerate();
 
-        $this->clearLoginAttempts($request);
 
-        $this->auth->guard()->login($user, true);
-
-        Event::dispatch(new DirectLogin($user, true));
-
+        Auth::loginUsingId($user->id);
         return new JsonResponse([
-            'data' => [
-                'complete' => true,
-                'intended' => $this->redirectPath(),
-                'user' => $user->toReactObject(),
-            ],
+            'success' => true,
         ]);
     }
 
