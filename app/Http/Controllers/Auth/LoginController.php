@@ -4,6 +4,7 @@ namespace Pterodactyl\Http\Controllers\Auth;
 
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
+use Exception;
 use Firebase\JWT\ExpiredException;
 use Firebase\JWT\JWT;
 use Firebase\JWT\Key;
@@ -11,9 +12,12 @@ use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Http;
 use Pterodactyl\Contracts\Repository\RefreshTokenRepositoryInterface;
 use Pterodactyl\Repositories\Eloquent\UserRepository;
 use Pterodactyl\Services\Api\AccessTokenService;
+use Pterodactyl\Services\Users\UserCreationService;
 
 class LoginController extends AbstractLoginController
 {
@@ -32,15 +36,22 @@ class LoginController extends AbstractLoginController
      */
     private AccessTokenService $accessTokenService;
 
+    /**
+     * @var UserCreationService
+     */
+    private UserCreationService $userCreationService;
+
     public function __construct(
         RefreshTokenRepositoryInterface $refreshTokenRepository,
         UserRepository                  $userRepository,
-        AccessTokenService              $accessTokenService
+        AccessTokenService              $accessTokenService,
+        UserCreationService             $userCreationService
     )
     {
         $this->refreshTokenRepository = $refreshTokenRepository;
         $this->userRepository = $userRepository;
         $this->accessTokenService = $accessTokenService;
+        $this->userCreationService = $userCreationService;
         parent::__construct();
     }
 
@@ -72,11 +83,9 @@ class LoginController extends AbstractLoginController
              * If an unexpired access token exists in session already, no need to get new access token
              */
             if ($accessToken = $request->session()->get('access_token')) {
-                if ($accessToken['token_expiry'] instanceof CarbonInterface && $accessToken['token_expiry']->isAfter(CarbonImmutable::now()->addMinute())) {
+                if (!$accessToken['token_expiry'] instanceof CarbonInterface && $accessToken['token_expiry']->isAfter(CarbonImmutable::now()->addMinute())) {
                     //TODO check if access token belongs to authenticated user
-                    return new JsonResponse([
-                        'success' => true
-                    ]);
+                    throw new ExpiredException();
                 }
             }
 
@@ -114,9 +123,20 @@ class LoginController extends AbstractLoginController
         /**
          * Check if user exists on panel
          */
-        if (!$user = $this->userRepository->getUserByUuid($userJwt['sub'])) {
-            
+        try {
+            $user = $this->userRepository->getUserByUuid($userJwt['sub']);
+        } catch (Exception $e) {
+            $userRes = json_decode(Http::withToken($request->session()->get('access_token')['token_value'])->post(env('API_SERVER') . 'user/store'), true)['data'];
+
+            $user = $this->userCreationService->handle([
+                'uuid' => $userJwt['sub'],
+                'email' => $userRes['email'],
+                'username' => $userRes['username']
+            ]);
         }
+
+        //Auth::loginUsingId($user->id);
+        return new JsonResponse($user);
     }
 
     /**
