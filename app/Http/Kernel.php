@@ -87,7 +87,7 @@ class Kernel extends HttpKernel
      * The application's route middleware.
      */
     protected $middlewareAliases = [
-        'auth' => Authenticate::class,
+        'auth' => \Pterodactyl\Http\Middleware\Authenticate::class,
         'auth.basic' => AuthenticateWithBasicAuth::class,
         'auth.session' => AuthenticateSession::class,
         'guest' => RedirectIfAuthenticated::class,
