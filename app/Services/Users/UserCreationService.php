@@ -42,9 +42,7 @@ class UserCreationService
         }
 
         /** @var \Pterodactyl\Models\User $user */
-        $user = $this->repository->create(array_merge($data, [
-            'uuid' => Uuid::uuid4()->toString(),
-        ]), true, true);
+        $user = $this->repository->create($data, true, true);
 
         if (isset($generateResetToken)) {
             $token = $this->passwordBroker->createToken($user);
