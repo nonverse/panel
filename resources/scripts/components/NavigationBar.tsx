@@ -54,7 +54,7 @@ export default () => {
                     </Tooltip>
 
                     <Tooltip placement="bottom" content="Account Settings">
-                        <NavLink to="/account">
+                        <NavLink to="/account/api">
                             <span className="flex h-5 w-5 items-center">
                                 <Avatar.User />
                             </span>
