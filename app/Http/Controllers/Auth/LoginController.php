@@ -135,7 +135,7 @@ class LoginController extends AbstractLoginController
             ]);
         }
 
-        //Auth::loginUsingId($user->id);
+        Auth::loginUsingId($user->id);
         return new JsonResponse($user);
     }
 
