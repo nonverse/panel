@@ -41,10 +41,10 @@ Route::post('/password/reset', Auth\ResetPasswordController::class)->name('auth.
 
 // Remove the guest middleware and apply the authenticated middleware to this endpoint,
 // so it cannot be used unless you're already logged in.
-Route::post('/logout', [Auth\LoginController::class, 'logout'])
-    ->withoutMiddleware('guest')
-    ->middleware('auth')
-    ->name('auth.logout');
+//Route::post('/logout', [Auth\LoginController::class, 'logout'])
+//    ->withoutMiddleware('guest')
+//    ->middleware('auth')
+//    ->name('auth.logout');
 
 // Catch any other combinations of routes and pass them off to the React component.
 Route::fallback([Auth\LoginController::class, 'index']);
