@@ -2,11 +2,13 @@ import { useEffect } from 'react';
 import useFlash from '@/plugins/useFlash';
 import http from "@/api/http";
 import Spinner from "@/components/elements/Spinner";
+import {useNavigate} from "react-router-dom";
 
 function LoginContainer() {
 
     const { clearFlashes } = useFlash();
     const query = new URLSearchParams(window.location.search)
+    const navigate = useNavigate()
 
     useEffect(() => {
         clearFlashes();
@@ -16,7 +18,9 @@ function LoginContainer() {
                 code: query.get('code')
             })
                 .then(response => {
-                    console.log(response)
+                    if (response.data.success) {
+                        window.location = "/"
+                    }
                 })
                 .catch(e => {
                     if (e.response.status === 401) {
