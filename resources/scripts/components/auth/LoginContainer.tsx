@@ -2,13 +2,11 @@ import { useEffect } from 'react';
 import useFlash from '@/plugins/useFlash';
 import http from "@/api/http";
 import Spinner from "@/components/elements/Spinner";
-import {useNavigate} from "react-router-dom";
 
 function LoginContainer() {
 
     const { clearFlashes } = useFlash();
     const query = new URLSearchParams(window.location.search)
-    const navigate = useNavigate()
 
     useEffect(() => {
         clearFlashes();
@@ -19,6 +17,7 @@ function LoginContainer() {
             })
                 .then(response => {
                     if (response.data.success) {
+                        // @ts-ignore
                         window.location = "/"
                     }
                 })
