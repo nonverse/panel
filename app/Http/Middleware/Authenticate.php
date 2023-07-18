@@ -4,6 +4,7 @@ namespace Pterodactyl\Http\Middleware;
 
 use Closure;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Symfony\Component\HttpFoundation\Response;
 
 class Authenticate
@@ -15,10 +16,10 @@ class Authenticate
      */
     public function handle(Request $request, Closure $next): Response
     {
-        if ($request->cookie('user_session') && $request->user()) {
-            return $next($request);
+        if (!$request->cookie('user_session')) {
+            Auth::logout();
         }
 
-        return redirect(route('auth.login'));
+        return $next($request);
     }
 }
