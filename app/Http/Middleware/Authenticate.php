@@ -3,6 +3,8 @@
 namespace Pterodactyl\Http\Middleware;
 
 use Closure;
+use Firebase\JWT\JWT;
+use Firebase\JWT\Key;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Symfony\Component\HttpFoundation\Response;
@@ -17,6 +19,12 @@ class Authenticate
     public function handle(Request $request, Closure $next): Response
     {
         if (!$request->cookie('user_session')) {
+            Auth::logout();
+        }
+
+        $jwt = (array)JWT::decode($request->cookie('user_session'), new Key(config('auth.public_key'), 'RS256'));
+
+        if ($request->user() && $jwt['sub'] !== $request->user()->uuid) {
             Auth::logout();
         }
 
