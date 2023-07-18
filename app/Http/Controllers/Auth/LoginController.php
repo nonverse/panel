@@ -3,16 +3,47 @@
 namespace Pterodactyl\Http\Controllers\Auth;
 
 use Carbon\CarbonImmutable;
-use Illuminate\Support\Str;
-use Illuminate\Http\Request;
-use Pterodactyl\Models\User;
-use Illuminate\Http\JsonResponse;
-use Pterodactyl\Facades\Activity;
+use Carbon\CarbonInterface;
+use Firebase\JWT\ExpiredException;
+use Firebase\JWT\JWT;
+use Firebase\JWT\Key;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Pterodactyl\Contracts\Repository\RefreshTokenRepositoryInterface;
+use Pterodactyl\Repositories\Eloquent\UserRepository;
+use Pterodactyl\Services\Api\AccessTokenService;
 
 class LoginController extends AbstractLoginController
 {
+    /**
+     * @var RefreshTokenRepositoryInterface
+     */
+    private RefreshTokenRepositoryInterface $refreshTokenRepository;
+
+    /**
+     * @var UserRepository
+     */
+    private UserRepository $userRepository;
+
+    /**
+     * @var AccessTokenService
+     */
+    private AccessTokenService $accessTokenService;
+
+    public function __construct(
+        RefreshTokenRepositoryInterface $refreshTokenRepository,
+        UserRepository                  $userRepository,
+        AccessTokenService              $accessTokenService
+    )
+    {
+        $this->refreshTokenRepository = $refreshTokenRepository;
+        $this->userRepository = $userRepository;
+        $this->accessTokenService = $accessTokenService;
+        parent::__construct();
+    }
+
     /**
      * Handle all incoming requests for the authentication routes and render the
      * base authentication view component. React will take over at this point and
@@ -24,52 +55,95 @@ class LoginController extends AbstractLoginController
     }
 
     /**
-     * Handle a login request to the application.
+     * Handle a login request to the application via OAuth2.
      *
-     * @throws \Pterodactyl\Exceptions\DisplayException
-     * @throws \Illuminate\Validation\ValidationException
+     *
      */
     public function login(Request $request): JsonResponse
     {
-        if ($this->hasTooManyLoginAttempts($request)) {
-            $this->fireLockoutEvent($request);
-            $this->sendLockoutResponse($request);
+        if (!$jwt = $request->cookie('user_session')) {
+            return $this->requestAuthorization($request);
         }
 
         try {
-            $username = $request->input('user');
+            $userJwt = (array)JWT::decode($jwt, new Key(config('auth.public_key'), 'RS256'));
 
-            /** @var \Pterodactyl\Models\User $user */
-            $user = User::query()->where($this->getField($username), $username)->firstOrFail();
-        } catch (ModelNotFoundException) {
-            $this->sendFailedLoginResponse($request);
+            /**
+             * If an unexpired access token exists in session already, no need to get new access token
+             */
+            if ($accessToken = $request->session()->get('access_token')) {
+                if ($accessToken['token_expiry'] instanceof CarbonInterface && $accessToken['token_expiry']->isAfter(CarbonImmutable::now()->addMinute())) {
+                    //TODO check if access token belongs to authenticated user
+                    return new JsonResponse([
+                        'success' => true
+                    ]);
+                }
+            }
+
+            /**
+             * Get user's refresh token from database
+             */
+            $refreshToken = $this->refreshTokenRepository->getUsingUserId($userJwt['sub']);
+            $this->accessTokenService->usingRefreshToken($request, $refreshToken);
+
+        } catch (ExpiredException $e) {
+            /**
+             * If authentication is invalid (expired), request authorization
+             * The auth server will automatically request the user to login if not already before authorizing the application
+             */
+            return $this->requestAuthorization($request);
+        } catch (ModelNotFoundException $e) {
+            /**
+             * If a refresh token is not found...
+             */
+            if ($request->input('code')) {
+                /**
+                 * If an authorization code is present in the request, get access token using authorization code
+                 */
+                $this->accessTokenService->usingAuthCode($request);
+            } else {
+                /**
+                 * If an authorization code is not found, request authorization
+                 * It is assumed that the user is logged in at this point. The auth server will still check for an
+                 * authenticated user but it is expected that the application will be authorized without requiring login
+                 */
+                return $this->requestAuthorization($request);
+            }
         }
 
-        // Ensure that the account is using a valid username and password before trying to
-        // continue. Previously this was handled in the 2FA checkpoint, however that has
-        // a flaw in which you can discover if an account exists simply by seeing if you
-        // can proceed to the next step in the login process.
-        if (!password_verify($request->input('password'), $user->password)) {
-            $this->sendFailedLoginResponse($request, $user);
+        /**
+         * Check if user exists on panel
+         */
+        if (!$user = $this->userRepository->getUserByUuid($userJwt['sub'])) {
+            
         }
+    }
 
-        if (!$user->use_totp) {
-            return $this->sendLoginResponse($user, $request);
-        }
+    /**
+     * Return response to request authorization
+     *
+     * @param Request $request
+     * @return JsonResponse
+     */
+    protected function requestAuthorization(Request $request): JsonResponse
+    {
 
-        Activity::event('auth:checkpoint')->withRequestMetadata()->subject($user)->log();
-
-        $request->session()->put('auth_confirmation_token', [
-            'user_id' => $user->id,
-            'token_value' => $token = Str::random(64),
-            'expires_at' => CarbonImmutable::now()->addMinutes(5),
+        $query = http_build_query([
+            'response_type' => 'code',
+            'client_id' => env('OAUTH_CLIENT_ID'),
+            'redirect_uri' => env('APP_URL') . 'auth/login',
+            'scope' => implode(" ", config('auth.scopes')),
         ]);
+
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
 
         return new JsonResponse([
+            'success' => false,
             'data' => [
-                'complete' => false,
-                'confirmation_token' => $token,
+                'auth_url' => env('OAUTH_SERVER') . 'oauth/authorize?' . $query
             ],
-        ]);
+            'error' => 'unauthenticated'
+        ], 401);
     }
 }
