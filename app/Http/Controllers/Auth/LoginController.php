@@ -128,13 +128,6 @@ class LoginController extends AbstractLoginController
         } catch (Exception $e) {
             $userRes = json_decode(Http::withToken($request->session()->get('access_token')['token_value'])->post(env('API_SERVER') . 'user/store'), true)['data'];
 
-            if (!$userRes['admin']) {
-                return new JsonResponse([
-                    'success' => false,
-                    'error' => 'forbidden'
-                ], 403);
-            }
-
             $user = $this->userCreationService->handle([
                 'uuid' => $userJwt['sub'],
                 'email' => $userRes['email'],
