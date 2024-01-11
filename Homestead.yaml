@@ -1,5 +1,5 @@
 ip: 192.168.56.59
-memory: 1024
+memory: 2048
 cpus: 1
 ssl: true
 provider: virtualbox

@@ -83,9 +83,13 @@ class LoginController extends AbstractLoginController
              * If an unexpired access token exists in session already, no need to get new access token
              */
             if ($accessToken = $request->session()->get('access_token')) {
-                if (!$accessToken['token_expiry'] instanceof CarbonInterface && $accessToken['token_expiry']->isAfter(CarbonImmutable::now()->addMinute())) {
-                    //TODO check if access token belongs to authenticated user
-                    throw new ExpiredException();
+                if ($accessToken['token_expiry'] instanceof CarbonInterface && $accessToken['token_expiry']->isAfter(CarbonImmutable::now()->addMinute())) {
+                    $decodedToken = (array)JWT::decode($accessToken['token_value'], new Key(config('auth.public_key'), 'RS256'));
+                    if ($decodedToken['sub'] === $userJwt['sub']) {
+                        return new JsonResponse([
+                            'success' => true
+                        ]);
+                    }
                 }
             }
 
@@ -150,7 +154,7 @@ class LoginController extends AbstractLoginController
         $query = http_build_query([
             'response_type' => 'code',
             'client_id' => env('OAUTH_CLIENT_ID'),
-            'redirect_uri' => env('APP_URL') . 'auth/login',
+            'redirect_uri' => env('APP_URL') . 'auth/login/',
             'scope' => implode(" ", config('auth.scopes')),
         ]);
 
