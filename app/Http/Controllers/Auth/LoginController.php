@@ -126,7 +126,7 @@ class LoginController extends AbstractLoginController
         try {
             $user = $this->userRepository->getUserByUuid($userJwt['sub']);
         } catch (Exception $e) {
-            $userRes = json_decode(Http::withToken($request->session()->get('access_token')['token_value'])->post(env('API_SERVER') . 'user/store'), true)['data'];
+            $userRes = json_decode(Http::withToken($request->session()->get('access_token')['token_value'])->get(env('API_SERVER') . 'user/store'), true)['data'];
 
             $user = $this->userCreationService->handle([
                 'uuid' => $userJwt['sub'],
